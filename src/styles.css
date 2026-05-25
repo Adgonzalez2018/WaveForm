@@ -1,0 +1,256 @@
+@font-face {
+  font-family: "Futura";
+  src: url("/Futura-Light-Oblique.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.App {
+  height: 100vh;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+  padding-bottom: 160px;
+}
+
+.frame {
+  position: relative;
+  width: min(96vw, 1800px);
+  aspect-ratio: 6000 / 1371;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scene {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.dot {
+  opacity: 0.96;
+}
+
+/* ── Controls panel ─────────────────────────────────────────────────────────── */
+
+.controls-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  padding: 14px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: "Futura", "Futura-Medium", Futura, sans-serif;
+  z-index: 100;
+}
+
+.ctrl-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+}
+
+.ctrl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.ctrl-group label {
+  font-family: "Futura", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.ctrl-group input[type="text"] {
+  font-family: "Futura", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  border-bottom: 1px solid #000;
+  background: transparent;
+  padding: 4px 2px;
+  outline: none;
+  color: #000;
+  width: 100%;
+}
+
+.ctrl-group input[type="text"]:focus {
+  border-bottom-color: #555;
+}
+
+.ctrl-group input[type="range"] {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1px;
+  background: #ccc;
+  outline: none;
+  cursor: pointer;
+}
+
+.ctrl-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #000;
+  cursor: pointer;
+}
+
+.ctrl-group input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #000;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Audio row ── */
+
+.audio-row {
+  align-items: center;
+  flex: none;
+}
+
+.audio-label {
+  font-family: "Futura", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #bbb;
+  min-width: 100px;
+}
+
+.btn {
+  font-family: "Futura", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  background: transparent;
+  border: 1px solid #000;
+  color: #000;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: #000;
+  color: #fff;
+}
+
+.btn-rec {
+  border-color: #c00;
+  color: #c00;
+}
+
+.btn-rec:hover {
+  background: #c00;
+  color: #fff;
+}
+
+.btn-stop {
+  background: #c00;
+  color: #fff;
+  border-color: #c00;
+  animation: blink 1s ease-in-out infinite;
+}
+
+.btn-live {
+  background: #000;
+  color: #fff;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.color-swatch input[type="color"] {
+  width: 200%;
+  height: 200%;
+  margin: -50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.bg-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #000;
+}
+
+.bg-toggle button {
+  font-family: "Futura", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: #000;
+  transition: background 0.1s, color 0.1s;
+}
+
+.bg-toggle button.active-white {
+  background: #fff;
+  color: #000;
+}
+
+.bg-toggle button.active-black {
+  background: #000;
+  color: #fff;
+}
+
+.effect-row .ctrl-group {
+  min-width: 0;
+}
+
+.color-row {
+  align-items: center;
+}
+
+.color-control {
+  flex: none;
+}
+
+.dot-color-swatch {
+  border-color: #000;
+}
