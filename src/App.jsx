@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { PAIRS, flattenPairsToSequence } from "../pairs";
+import { loadRecordings } from "./loadRecordings";
 import "./styles.css";
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -7,10 +9,23 @@ const H = 1371;
 const MID = H / 2;
 const PT = 2200;
 const SPACING = 4;
+const SEQUENCE = flattenPairsToSequence(PAIRS);
+
+function getSequenceText(index) {
+  if (!SEQUENCE.length) return "";
+  return SEQUENCE[((index % SEQUENCE.length) + SEQUENCE.length) % SEQUENCE.length];
+}
+
+function getTransitionTexts(index) {
+  return {
+    fromText: getSequenceText(index),
+    toText: getSequenceText(index + 1),
+  };
+}
+
+const INITIAL_TRANSITION = getTransitionTexts(0);
 
 const DEFAULTS = {
-  wordA: "INEVERSEEYOU",
-  wordB: "PRESENTS",
   amplitude: 160,
   morphDuration: 2000,
   holdDuration: 1200,
@@ -216,12 +231,14 @@ async function decodeAudioFile(buf) {
 export default function App() {
   const svgRef = useRef(null);
   const rafRef = useRef(null);
+  const recordingsRef = useRef(new Map());
   const stateRef = useRef({
     ptsA: [], ptsB: [], wavePts: [],
     stage: "from",
     stageStart: performance.now(),
     t_anim: 0,
     lastFrame: performance.now(),
+    paused: false,
     audioSamples: [],
     amplitude: DEFAULTS.amplitude,
     morphDuration: DEFAULTS.morphDuration,
@@ -232,15 +249,19 @@ export default function App() {
     bitcrushLevel: DEFAULTS.bitcrushLevel,
     brokennessLevel: DEFAULTS.brokennessLevel,
     pendingRebuild: false,
-    wordA: DEFAULTS.wordA,
-    wordB: DEFAULTS.wordB,
+    transitionIndex: 0,
+    wordA: INITIAL_TRANSITION.fromText,
+    wordB: INITIAL_TRANSITION.toText,
     liveMic: false,
     micAnalyser: null,
     micBuf: null,
   });
 
-  const [wordA, setWordA] = useState(DEFAULTS.wordA);
-  const [wordB, setWordB] = useState(DEFAULTS.wordB);
+  const [transitionIndex, setTransitionIndex] = useState(0);
+  const { fromText, toText } = getTransitionTexts(transitionIndex);
+  const [recordings, setRecordings] = useState(new Map());
+  const [waveformsReady, setWaveformsReady] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [amplitude, setAmplitude] = useState(DEFAULTS.amplitude);
   const [morphDuration, setMorphDuration] = useState(DEFAULTS.morphDuration);
   const [dotRadius, setDotRadius] = useState(DEFAULTS.dotRadius);
@@ -265,7 +286,24 @@ export default function App() {
   useEffect(() => { stateRef.current.grainLevel = grainLevel; }, [grainLevel]);
   useEffect(() => { stateRef.current.bitcrushLevel = bitcrushLevel; }, [bitcrushLevel]);
   useEffect(() => { stateRef.current.brokennessLevel = brokennessLevel; }, [brokennessLevel]);
-  useEffect(() => { stateRef.current.wordA = wordA; stateRef.current.wordB = wordB; stateRef.current.pendingRebuild = true; }, [wordA, wordB]);
+  useEffect(() => { recordingsRef.current = recordings; }, [recordings]);
+  useEffect(() => { stateRef.current.paused = paused; }, [paused]);
+
+  const togglePaused = useCallback(() => {
+    setPaused(value => !value);
+  }, []);
+
+  function applyRecordingForText(phraseText, recordingsMap = recordingsRef.current) {
+    if (!recordingsMap.has(phraseText)) return;
+
+    const samples = recordingsMap.get(phraseText) ?? new Float32Array(0);
+    stateRef.current.audioSamples = samples;
+    stateRef.current.liveMic = false;
+    stateRef.current.micAnalyser = null;
+    stateRef.current.micBuf = null;
+    setLiveMic(false);
+    setAudioLabel(samples.length ? phraseText.slice(0, 24) : "missing audio");
+  }
 
   const rebuildPoints = useCallback(() => {
     const s = stateRef.current;
@@ -302,6 +340,9 @@ export default function App() {
     const dt = (now - s.lastFrame) / 1000;
     s.lastFrame = now;
     s.t_anim += dt;
+    if (s.paused) {
+      s.stageStart += dt * 1000;
+    }
 
     const elapsed = now - s.stageStart;
     const {
@@ -341,9 +382,14 @@ export default function App() {
     } else {
       rendPts = s.ptsB;
       if (elapsed >= hd) {
-        if (s.pendingRebuild) rebuildPoints();
-        // swap A/B
-        [s.ptsA, s.ptsB] = [s.ptsB, s.ptsA];
+        const nextIndex = (s.transitionIndex + 1) % SEQUENCE.length;
+        const { fromText: nextFromText, toText: nextToText } = getTransitionTexts(nextIndex);
+        s.transitionIndex = nextIndex;
+        s.wordA = nextFromText;
+        s.wordB = nextToText;
+        applyRecordingForText(nextFromText);
+        rebuildPoints();
+        setTransitionIndex(nextIndex);
         s.stage = "from"; s.stageStart = now;
       }
     }
@@ -382,6 +428,55 @@ export default function App() {
     rebuildPoints();
     rafRef.current = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.code !== "Space") return;
+      const target = e.target;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable;
+
+      if (isTyping) return;
+      e.preventDefault();
+      togglePaused();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [togglePaused]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadWaveforms() {
+      setWaveformsReady(false);
+      try {
+        const loadedRecordings = await loadRecordings(PAIRS);
+        if (cancelled) return;
+
+        recordingsRef.current = loadedRecordings;
+        setRecordings(loadedRecordings);
+        setWaveformsReady(true);
+        applyRecordingForText(stateRef.current.wordA, loadedRecordings);
+      } catch {
+        if (!cancelled) {
+          recordingsRef.current = new Map();
+          setRecordings(new Map());
+          setWaveformsReady(false);
+          setAudioLabel("audio unavailable");
+        }
+      }
+    }
+
+    loadWaveforms();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── audio controls ──
@@ -464,25 +559,15 @@ export default function App() {
       </div>
 
       {/* ── Controls overlay ── */}
-      <div className="controls-panel">
+      <div className="controls-panel" data-waveforms-ready={waveformsReady}>
         <div className="ctrl-row">
           <div className="ctrl-group">
             <label>Phrase A</label>
-            <input
-              type="text"
-              value={wordA}
-              maxLength={30}
-              onChange={e => setWordA(e.target.value.toUpperCase())}
-            />
+            <div className="phrase-readout">{fromText}</div>
           </div>
           <div className="ctrl-group">
             <label>Phrase B</label>
-            <input
-              type="text"
-              value={wordB}
-              maxLength={30}
-              onChange={e => setWordB(e.target.value.toUpperCase())}
-            />
+            <div className="phrase-readout">{toText}</div>
           </div>
         </div>
 
@@ -524,6 +609,16 @@ export default function App() {
         </div>
 
         <div className="ctrl-row color-row">
+          <div className="ctrl-group hold-control">
+            <label>Sequence</label>
+            <button
+              type="button"
+              className={`btn hold-btn ${paused ? "is-paused" : ""}`}
+              onClick={togglePaused}
+            >
+              {paused ? "RESUME" : "HOLD"}
+            </button>
+          </div>
           <div className="ctrl-group color-control">
             <label>Dot color</label>
             <label className="color-swatch dot-color-swatch" style={{ background: dotColor }}>
